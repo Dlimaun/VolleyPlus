@@ -16,8 +16,6 @@
 
 package com.android.volley.cache;
 
-import java.util.ArrayList;
-
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
@@ -43,8 +41,11 @@ import com.android.volley.misc.Utils;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.HttpClientStack;
 import com.android.volley.toolbox.HurlStack;
+import com.android.volley.toolbox.ImageCache;
 import com.android.volley.toolbox.ImageLoader;
 import com.android.volley.ui.PhotoView;
+
+import java.util.ArrayList;
 
 /**
  * A class that wraps up remote image loading requests using the Volley library combined with a
@@ -59,7 +60,7 @@ public class SimpleImageLoader extends ImageLoader {
     private static final ColorDrawable transparentDrawable = new ColorDrawable(
             android.R.color.transparent);
     private static final int HALF_FADE_IN_TIME = Utils.ANIMATION_FADE_IN_TIME / 2;
-    private static final String CACHE_DIR = "images";
+    protected static final String CACHE_DIR = "images";
 
     private ArrayList<Drawable> mPlaceHolderDrawables;
     private boolean mFadeInImage = true;
@@ -67,8 +68,29 @@ public class SimpleImageLoader extends ImageLoader {
     private int mMaxImageWidth = 0;
 
     /**
-     * Creates an ImageLoader with Bitmap memory cache. No default placeholder image will be shown
-     * while the image is being fetched and loaded.
+     * {@inheritDoc}
+     */
+    public SimpleImageLoader(RequestQueue queue) {
+        this(queue, BitmapCache.getInstance(null));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public SimpleImageLoader(RequestQueue queue, ImageCache imageCache) {
+        this(queue, imageCache, null);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public SimpleImageLoader(RequestQueue queue, ImageCache imageCache, Resources resources) {
+        super(queue, imageCache, resources);
+    }
+
+    /**
+     * Creates an ImageLoader with Bitmap memory cache.
+     * @param activity
      */
     public SimpleImageLoader(FragmentActivity activity) {
         super(newRequestQueue(activity, null),
@@ -77,8 +99,9 @@ public class SimpleImageLoader extends ImageLoader {
     }
     
     /**
-     * Creates an ImageLoader with Bitmap memory cache. No default placeholder image will be shown
-     * while the image is being fetched and loaded.
+     * Creates an ImageLoader with Bitmap memory cache.
+     * @param activity
+     * @param imageCacheParams
      */
     public SimpleImageLoader(FragmentActivity activity, ImageCacheParams imageCacheParams) {
         super(newRequestQueue(activity, imageCacheParams),
@@ -87,49 +110,23 @@ public class SimpleImageLoader extends ImageLoader {
     }
 
     /**
-     * Creates an ImageLoader with Bitmap memory cache and a default placeholder image while the
-     * image is being fetched and loaded.
+     * Creates an ImageLoader with Bitmap memory cache.
+     * @param context
      */
-    public SimpleImageLoader(FragmentActivity activity, int defaultPlaceHolderResId, ImageCacheParams imageCacheParams) {
-        super(newRequestQueue(activity,imageCacheParams),
-                BitmapImageCache.getInstance(activity.getSupportFragmentManager(), imageCacheParams),
-                activity.getResources());
-        mPlaceHolderDrawables = new ArrayList<Drawable>(1);
-        mPlaceHolderDrawables.add(defaultPlaceHolderResId == -1 ?
-                null : getResources().getDrawable(defaultPlaceHolderResId));
+    public SimpleImageLoader(Context context) {
+        super(newRequestQueue(context, null), BitmapImageCache.getInstance(null),
+                context.getResources());
     }
 
     /**
-     * Creates an ImageLoader with Bitmap memory cache and a list of default placeholder drawables.
+     * Creates an ImageLoader with Bitmap memory cache.
+     * @param context
+     * @param imageCacheParams
      */
-    public SimpleImageLoader(FragmentActivity activity, ArrayList<Drawable> placeHolderDrawables, ImageCacheParams imageCacheParams) {
-        super(newRequestQueue(activity, imageCacheParams),
-                BitmapImageCache.getInstance(activity.getSupportFragmentManager(), imageCacheParams),
-                activity.getResources());
-        mPlaceHolderDrawables = placeHolderDrawables;
-    }
-    
-    /**
-     * Creates an ImageLoader with Bitmap memory cache and a default placeholder image while the
-     * image is being fetched and loaded.
-     */
-    public SimpleImageLoader(Context context, int defaultPlaceHolderResId, ImageCacheParams imageCacheParams) {
+    public SimpleImageLoader(Context context, ImageCacheParams imageCacheParams) {
         super(newRequestQueue(context, imageCacheParams),
                 BitmapImageCache.getInstance(null, imageCacheParams),
                 context.getResources());
-        mPlaceHolderDrawables = new ArrayList<Drawable>(1);
-        mPlaceHolderDrawables.add(defaultPlaceHolderResId == -1 ?
-                null : getResources().getDrawable(defaultPlaceHolderResId));
-    }
-
-    /**
-     * Creates an ImageLoader with Bitmap memory cache and a list of default placeholder drawables.
-     */
-    public SimpleImageLoader(Context context, ArrayList<Drawable> placeHolderDrawables, ImageCacheParams imageCacheParams) {
-        super(newRequestQueue(context, imageCacheParams),
-                BitmapImageCache.getInstance(null, imageCacheParams),
-                context.getResources());
-        mPlaceHolderDrawables = placeHolderDrawables;
     }
 
     /**
@@ -154,7 +151,7 @@ public class SimpleImageLoader extends ImageLoader {
 	}
     
     /**
-     * Flushed {@link Cache} and clears {@link ImageCache}.
+     * Flushed {@link Cache} and clears {@link com.android.volley.toolbox.ImageCache}.
      */
     public void flushCache() {
     	getImageCache().clear();
@@ -171,12 +168,21 @@ public class SimpleImageLoader extends ImageLoader {
     public boolean isCached(String key) {
     	return getCache().get(key) != null;
 	}
-    
+
+    @Deprecated
     public void invalidate(String key) {
         final String cacheKey = getCacheKey(key, mMaxImageWidth, mMaxImageHeight);
     	getImageCache().invalidateBitmap(cacheKey);
     	getCache().invalidate(key, true);
 	}
+
+    public void invalidate(String key, ImageView view) {
+        final String cacheKey = getCacheKey(key, mMaxImageWidth, mMaxImageHeight, view.getScaleType());
+        getImageCache().invalidateBitmap(cacheKey);
+        getCache().invalidate(key, true);
+        //default cache
+        invalidate(key);
+    }
 
 	public SimpleImageLoader setFadeInImage(boolean fadeInImage) {
         mFadeInImage = fadeInImage;
@@ -186,6 +192,28 @@ public class SimpleImageLoader extends ImageLoader {
     public SimpleImageLoader setMaxImageSize(int maxImageWidth, int maxImageHeight) {
         mMaxImageWidth = maxImageWidth;
         mMaxImageHeight = maxImageHeight;
+        return this;
+    }
+
+    /**
+     * A default placeholder image while the image is being fetched and loaded.
+     * @param defaultPlaceHolderResId
+     * @return
+     */
+    public  SimpleImageLoader setDefaultDrawable(int defaultPlaceHolderResId){
+        mPlaceHolderDrawables = new ArrayList<Drawable>(1);
+        mPlaceHolderDrawables.add(defaultPlaceHolderResId == -1 ?
+                null : getResources().getDrawable(defaultPlaceHolderResId));
+        return this;
+    }
+
+    /**
+     * A default placeholder image while the image is being fetched and loaded.
+     * @param placeHolderDrawables
+     * @return
+     */
+    public  SimpleImageLoader setDefaultDrawables(ArrayList<Drawable> placeHolderDrawables){
+        mPlaceHolderDrawables = placeHolderDrawables;
         return this;
     }
 
@@ -244,7 +272,7 @@ public class SimpleImageLoader extends ImageLoader {
                 // Queue new request to fetch image
                 imageContainer = get(requestUrl,
                         getImageListener(getResources(), imageView, placeHolder, mFadeInImage),
-                        maxWidth, maxHeight);
+                        maxWidth, maxHeight, imageView.getScaleType());
                 // Store request in ImageView tag
                 imageView.setTag(imageContainer);
             } else {
@@ -294,7 +322,7 @@ public class SimpleImageLoader extends ImageLoader {
             // Queue new request to fetch image
             imageContainer = set(requestUrl,
                     getImageListener(getResources(), imageView, placeHolder, mFadeInImage),
-                    maxWidth, maxHeight, bitmap);
+                    maxWidth, maxHeight, imageView.getScaleType(), bitmap);
             // Store request in ImageView tag
             imageView.setTag(imageContainer);
         } else {

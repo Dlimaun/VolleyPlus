@@ -17,7 +17,6 @@
 package com.android.volley.error;
 
 import com.android.volley.NetworkResponse;
-import com.android.volley.error.VolleyError;
 
 /**
  * Indicates that there was a network error when performing a Volley request.
@@ -34,5 +33,9 @@ public class NetworkError extends VolleyError {
 
     public NetworkError(NetworkResponse networkResponse) {
         super(networkResponse);
+    }
+
+    public NetworkError(NetworkResponse networkResponse, Throwable reason) {
+        super(networkResponse, reason);
     }
 }
