@@ -16,15 +16,16 @@
 
 package com.android.volley;
 
-import java.util.concurrent.BlockingQueue;
-
 import android.annotation.TargetApi;
 import android.net.TrafficStats;
 import android.os.Build;
 import android.os.Process;
+import android.os.SystemClock;
 
 import com.android.volley.error.VolleyError;
 import com.android.volley.misc.Utils;
+
+import java.util.concurrent.BlockingQueue;
 
 /**
  * Provides a thread for performing network dispatch from a queue of requests.
@@ -84,8 +85,9 @@ public class NetworkDispatcher extends Thread {
     @Override
     public void run() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-        Request<?> request;
         while (true) {
+            long startTimeMs = SystemClock.elapsedRealtime();
+            Request<?> request;
             try {
                 // Take a request from the queue.
                 request = mQueue.take();
@@ -142,10 +144,13 @@ public class NetworkDispatcher extends Thread {
                 request.markDelivered();
                 mDelivery.postResponse(request, response);
             } catch (VolleyError volleyError) {
+                volleyError.setNetworkTimeMs(SystemClock.elapsedRealtime() - startTimeMs);
                 parseAndDeliverNetworkError(request, volleyError);
             } catch (Exception e) {
                 VolleyLog.e(e, "Unhandled exception %s", e.toString());
-                mDelivery.postError(request, new VolleyError(e));
+                VolleyError volleyError = new VolleyError(e);
+                volleyError.setNetworkTimeMs(SystemClock.elapsedRealtime() - startTimeMs);
+                mDelivery.postError(request, volleyError);
             }
         }
     }
